@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Teacher Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        body {
+            background: #e9f0f7;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .assignment-header {
+            font-weight: bold;
+        }
+
+        .submission-list {
+            list-style: none;
+            padding-left: 0;
+            margin-top: 1rem;
+        }
+
+        .submission-list .list-group-item:hover {
+            background-color: #f0f8ff;
+            /* Light blue hover */
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .btn-sm {
+            font-size: 0.85rem;
+            padding: 0.3rem 0.6rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container py-5">
+        <div class="position-relative mb-5 text-center">
+            <h2>👩‍🏫 Teacher Dashboard</h2>
+            <button class="btn btn-danger position-absolute top-0 end-0" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="card mx-auto" style="max-width: 600px;">
+            <h4>Create New Assignment</h4>
+            <input type="text" id="title" class="form-control mb-2" placeholder="Assignment Title" />
+            <textarea id="description" class="form-control mb-2" placeholder="Description"></textarea>
+            <button class="btn btn-primary w-100" onclick="createAssignment()">Create</button>
+        </div>
+
+        <hr class="my-5" />
+
+        <div class="text-center mb-4">
+            <h4>📋 Your Created Assignments</h4>
+        </div>
+        <div id="assignmentList"></div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem("token");
+        console.log("Token:", token);
+
+        if (!token) {
+            alert("Please login first.");
+            window.location.href = "login.html";
+        }
+
+        async function createAssignment() {
+            const title = document.getElementById("title").value;
+            const description = document.getElementById("description").value;
+
+            const res = await fetch("http://127.0.0.1:8000/assignments", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + token,
+                },
+                body: JSON.stringify({ title, description }),
+            });
+
+            if (res.status === 401) {
+                alert("Session expired. Please login again.");
+                logout();
+                return;
+            }
+
+            const data = await res.json();
+            alert(data.message || "Created!");
+            loadAssignments();
+        }
+
+        async function loadAssignments() {
+            const list = document.getElementById("assignmentList");
+            list.innerHTML = "";
+
+            if (!token) {
+                alert("Session expired. Please log in again.");
+                window.location.href = "login.html";
+                return;
+            }
+
+            try {
+                const res = await fetch("http://127.0.0.1:8000/assignments", {
+                    headers: {
+                        Authorization: "Bearer " + token,
+                    },
+                });
+
+                if (res.status === 401) {
+                    alert("Unauthorized. Please log in again.");
+                    logout();
+                    return;
+                }
+
+                const assignments = await res.json();
+
+                let count = 1;
+
+                for (const a of assignments) {
+                    const card = document.createElement("div");
+                    card.className = "card";
+
+                    const submissionCountRes = await fetch(`http://127.0.0.1:8000/submissions/${a.id}`, {
+                        headers: { Authorization: "Bearer " + token },
+                    });
+                    const subs = await submissionCountRes.json();
+
+                    card.innerHTML = `
+            <h5 class="assignment-header">${count++}. ${a.title}</h5>
+            <p>${a.description}</p>
+            <p class="text-muted mb-2">🧑‍🎓 ${subs.length} student(s) submitted</p>
+            <div class="d-flex justify-content-between align-items-center">
+              <button class="btn btn-outline-primary btn-sm px-3" onclick="loadSubmissions(${a.id}, this)">📄 View Submissions</button>
+              <button class="btn btn-outline-danger btn-sm px-3" onclick="deleteAssignment(${a.id})">🗑️ Delete</button>
+            </div>
+            <ul class="submission-list list-group d-none mt-3"></ul>
+          `;
+
+                    list.appendChild(card);
+                }
+            } catch (error) {
+                console.error("Error loading assignments:", error);
+                list.innerHTML = `<div class="alert alert-danger">Error loading assignments. Please try again later.</div>`;
+            }
+        }
+
+        async function loadSubmissions(assignmentId, buttonEl) {
+            const submissionList = buttonEl.parentElement.nextElementSibling;
+
+            if (!submissionList.classList.contains("d-none")) {
+                submissionList.classList.add("d-none");
+                buttonEl.textContent = "📄 View Submissions";
+                return;
+            }
+
+            submissionList.innerHTML = `<li class="list-group-item">Loading...</li>`;
+            submissionList.classList.remove("d-none");
+            buttonEl.textContent = "🔽 Hide Submissions";
+
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/submissions/${assignmentId}`, {
+                    headers: { Authorization: "Bearer " + token },
+                });
+
+                const subs = await res.json();
+                submissionList.innerHTML = "";
+
+                if (subs.length === 0) {
+                    submissionList.innerHTML = `<li class="list-group-item text-muted">No submissions yet.</li>`;
+                    return;
+                }
+
+                subs.forEach((sub, idx) => {
+                    const li = document.createElement("li");
+                    li.className = "list-group-item d-flex justify-content-between align-items-center";
+
+                    const filename = sub.file_path.split("/").pop();
+                    const displayName = filename.split("_").slice(1).join("_");
+
+                    const info = document.createElement("span");
+                    info.innerHTML = `<strong>${idx + 1}. ${sub.student_username}</strong>`;
+
+                    const downloadBtn = document.createElement("button");
+                    downloadBtn.className = "btn btn-sm btn-outline-primary";
+                    downloadBtn.textContent = "Download";
+
+                    downloadBtn.onclick = async () => {
+                        const response = await fetch(`http://127.0.0.1:8000/download/${sub.submission_id}`, {
+                            headers: {
+                                Authorization: "Bearer " + token,
+                            },
+                        });
+
+                        if (!response.ok) {
+                            alert("Download failed.");
+                            return;
+                        }
+
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = displayName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    };
+
+                    li.appendChild(info);
+                    li.appendChild(downloadBtn);
+                    submissionList.appendChild(li);
+                });
+            } catch (error) {
+                console.error("Error loading submissions:", error);
+                submissionList.innerHTML = `<li class="list-group-item text-danger">Failed to load submissions.</li>`;
+            }
+        }
+
+        async function deleteAssignment(assignmentId) {
+            if (!confirm("Are you sure you want to delete this assignment?")) return;
+
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/assignments/${assignmentId}`, {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: "Bearer " + token,
+                    },
+                });
+
+                if (res.ok) {
+                    alert("Assignment deleted.");
+                    loadAssignments();
+                } else {
+                    const data = await res.json();
+                    alert(data.detail || "Delete failed.");
+                }
+            } catch (err) {
+                console.error("Error deleting assignment:", err);
+                alert("Something went wrong.");
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("token");
+            window.location.href = "login.html";
+        }
+
+        document.addEventListener("DOMContentLoaded", loadAssignments);
+    </script>
+</body>
+
+</html>
