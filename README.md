@@ -72,27 +72,6 @@ A full-stack assignment management system built for Pannini Educational Ventures
 | GET    | `/submissions/{id}`    | View all submissions (teacher)  |
 | GET    | `/my-submissions`      | Student's submitted assignments |
 
-## 🧑‍💻 GitHub Deployment
-
-Assuming you already created a GitHub repo:
-
-### Step-by-Step Push
-
-```bash
-
-git init
-
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-
-git add .
-git commit -m "Initial project commit"
-
-git push -u origin main
-```
-
-Make sure you replace `YOUR_USERNAME` and `YOUR_REPO_NAME` with your actual GitHub values.
-
----
 
 ## 👨‍🎓 Created by
 **Sharath M Talawar**  
