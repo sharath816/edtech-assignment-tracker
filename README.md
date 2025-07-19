@@ -1,6 +1,6 @@
 # 📘 EdTech Assignment Tracker
 
-A full-stack assignment management system built for Pannini Educational Ventures Pvt. Ltd. internship project.
+A full-stack assignment management system.
 
 ## 🔧 Tech Stack
 
